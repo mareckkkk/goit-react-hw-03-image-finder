@@ -1,79 +1,106 @@
-import React, { Component } from "react";
-import { nanoid } from "nanoid";
-import { ContactForm } from "./ContactForm/ContactForm";
-import { Filter } from "./Filter/Filter";
-import { ContactList } from "./ContactList/ContactList";
+import { Component } from "react";
+import { Searchbar } from "./Searchbar/Searchbar";
+import { fetchImages } from "./api/fetchImages";
+import { ImageGallery } from "./ImageGallery/ImageGallery.jsx";
+import { Button } from "./Button/Button";
+import { Loader } from "./Loader/Loader";
+import { Modal } from "./Modal/Modal";
+import React from "react";
 
-export default class App extends Component {
+export class App extends Component {
   state = {
-    contacts: [
-      { id: "id-1", name: "Rosie Simpson", number: "459-12-56" },
-      { id: "id-2", name: "Hermione Kline", number: "443-89-12" },
-      { id: "id-3", name: "Eden Clements", number: "645-17-79" },
-      { id: "id-4", name: "Annie Copeland", number: "227-91-26" },
-    ],
-    filter: "",
-    name: "",
-    number: "",
+    images: [],
+    isLoading: false,
+    currentSearch: "",
+    pageNr: 1,
+    modalOpen: false,
+    modalImg: "",
+    modalAlt: "",
   };
 
-  handleChange = (e) => {
-    const { name, value } = e.target;
-    this.setState({ [name]: value });
-  };
-
-  handleSubmit = (e) => {
-    const id = nanoid();
-    const name = e.name;
-    const number = e.number;
-    const contactsLists = [...this.state.contacts];
-
-    if (contactsLists.findIndex((contact) => name === contact.name) !== -1) {
-      alert(`${name} is already in contacts.`);
-    } else {
-      contactsLists.push({ name, id, number });
+  handleSubmit = async (e) => {
+    e.preventDefault();
+    this.setState({ isLoading: true });
+    const inputForSearch = e.target.elements.inputForSearch;
+    if (inputForSearch.value.trim() === "") {
+      return;
     }
-
-    this.setState({ contacts: contactsLists });
-  };
-
-  handleDelete = (e) => {
-    this.setState((prevState) => ({
-      contacts: prevState.contacts.filter((contact) => contact.id !== e),
-    }));
-  };
-
-  getFilteredContacts = () => {
-    const filterContactsList = this.state.contacts.filter((contact) => {
-      return contact.name
-        .toLowerCase()
-        .includes(this.state.filter.toLowerCase());
+    const response = await fetchImages(inputForSearch.value, 1);
+    this.setState({
+      images: response,
+      isLoading: false,
+      currentSearch: inputForSearch.value,
+      pageNr: 1,
     });
-
-    return filterContactsList;
   };
+
+  handleClickMore = async () => {
+    const response = await fetchImages(
+      this.state.currentSearch,
+      this.state.pageNr + 1,
+    );
+    this.setState({
+      images: [...this.state.images, ...response],
+      pageNr: this.state.pageNr + 1,
+    });
+  };
+
+  handleImageClick = (e) => {
+    this.setState({
+      modalOpen: true,
+      modalAlt: e.target.alt,
+      modalImg: e.target.name,
+    });
+  };
+
+  handleModalClose = () => {
+    this.setState({
+      modalOpen: false,
+      modalImg: "",
+      modalAlt: "",
+    });
+  };
+
+  handleKeyDown = (event) => {
+    if (event.code === "Escape") {
+      this.handleModalClose();
+    }
+  };
+
+  async componentDidMount() {
+    window.addEventListener("keydown", this.handleKeyDown);
+  }
 
   render() {
-    const { filter } = this.state;
-
     return (
       <div
         style={{
-          display: "flex",
-        flexDirection: "column",
-        marginLeft: 10,
-          alignItems: "left",
-          fontSize: 20,
-          color: "#010101",
+          display: "grid",
+          gridTemplateColumns: "1fr",
+          gridGap: "16px",
+          paddingBottom: "24px",
         }}>
-        <h1>Phonebook</h1>
-        <ContactForm handleSubmit={this.handleSubmit} />
-        <h2> Contacts</h2>
-        <Filter filter={filter} handleChange={this.handleChange} />
-        <ContactList
-          contacts={this.getFilteredContacts()}
-          handleDelete={this.handleDelete}
-        />
+        {this.state.isLoading ? (
+          <Loader />
+        ) : (
+          <React.Fragment>
+            <Searchbar onSubmit={this.handleSubmit} />
+            <ImageGallery
+              onImageClick={this.handleImageClick}
+              images={this.state.images}
+            />
+            {this.state.images.length > 0 ? (
+              <Button onClick={this.handleClickMore} />
+            ) : null}
+          </React.Fragment>
+        )}
+        {this.state.modalOpen ? (
+          <Modal
+            src={this.state.modalImg}
+            alt={this.state.modalAlt}
+            handleClose={this.handleModalClose}
+          />
+        ) : null}
       </div>
     );
   }
